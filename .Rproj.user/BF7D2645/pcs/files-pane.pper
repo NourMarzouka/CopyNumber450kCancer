@@ -1,0 +1,9 @@
+{
+    "path" : "~/R/CopyNumber450kCancer",
+    "sortOrder" : [
+        {
+            "ascending" : true,
+            "columnIndex" : 2
+        }
+    ]
+}

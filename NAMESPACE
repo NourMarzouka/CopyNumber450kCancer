@@ -1,1 +1,8 @@
 exportPattern("^[[:alpha:]]+")
+S3method(print,CopyNumber450kCancer_data)
+  importFrom("grDevices", "dev.off", "graphics.off", "png")
+  importFrom("graphics", "abline", "axis", "box", "layout", "legend",
+             "locator", "mtext", "par", "plot", "rect", "text")
+  importFrom("methods", "hasArg")
+  importFrom("stats", "IQR", "density", "median", "sd")
+  importFrom("utils", "read.csv", "write.csv")

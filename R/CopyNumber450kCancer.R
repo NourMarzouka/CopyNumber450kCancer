@@ -1,6 +1,7 @@
 
 #Function to read the data------
-ReadData<-function(regions_file, Sample_list,copynumber450k=F){
+ReadData<-function(regions_file, Sample_list,copynumber450k=FALSE){
+
   #Functions for checking the headers:::
   #this function to check the header of the input file: ("Sample" "Chromosome" "bp.Start"  "bp.End" "Num.of.Markers" "Mean")
   checkHeaderRegions <- function(file){  
@@ -26,43 +27,58 @@ ReadData<-function(regions_file, Sample_list,copynumber450k=F){
     }
     invisible(sum(colnames(file)==colnamesSL))  #if 3 then it is OK if else there is problem in the header
   }
-  
-  if (copynumber450k==F){
-    regions<-read.csv(regions_file,stringsAsFactors =F)   #load the file that contains regions and means
+
+  if(is.character(regions_file)){
+    regions<-read.csv(regions_file,stringsAsFactors =FALSE)   #load the file that contains regions and means
+  } else {
+    regions <- regions_file
   }
-  if (copynumber450k==T){
-    regions<-read.csv(regions_file,stringsAsFactors =F)
+  if (copynumber450k==TRUE){
     regions<-regions[,c("Sample","chrom","loc.start","loc.end","num.mark","seg.mean")]
     colnames(regions)<-c("Sample","Chromosome","bp.Start","bp.End","Num.of.Markers","Mean")
   }
   
   
-  SL<-read.csv(Sample_list,stringsAsFactors =F)         #load the file that contains the names of samples and the comments
+  if(is.character(regions_file)){
+    SL<-read.csv(Sample_list,stringsAsFactors =FALSE)         #load the file that contains the names of samples and the comments
+  } else {
+    SL <- Sample_list
+  }
   
   checkHeaderRegions(regions)
   checkHeaderSL(SL)
   
   #regions[is.na(regions)] <- 0
-  
-  assign("regions",regions,envir = .GlobalEnv)
-  assign("regions_auto",regions,envir = .GlobalEnv) # to make copy of regions file
-  assign("regions_save",regions,envir = .GlobalEnv) # to make copy of regions file
-  assign("SL",SL,envir = .GlobalEnv)
-  
-  mod<-as.data.frame(SL$Sample,stringsAsFactors =F)  # copy to store the modification in it
+
+  object <- list(
+    mainDir = getwd(),
+    regions = regions,
+    regions_save = regions,
+    regions_auto = regions,
+    SL = SL)
+  class(object) <- "CopyNumber450kCancer_data"
+
+  mod<-as.data.frame(SL$Sample,stringsAsFactors =FALSE)  # copy to store the modification in it
   mod[,2:6]<-0
   mod[,6]<-"No"
   mod[is.na(mod)] <- 0
   colnames(mod)<-c("Sample","Lower_selected_level","Upper_selected_level","Mean_of_selected_regions","Shifting","Reviewed?")
-  assign("mod",mod,envir = .GlobalEnv)
+  object$mod <- mod
   
   mod_auto<-mod[,c("Sample","Mean_of_selected_regions","Shifting","Reviewed?")]
   colnames(mod_auto)<-c("Sample","Auto_Maximum_Peak","Shifting","Auto_Corrected?")
-  assign("mod_auto",mod_auto,envir = .GlobalEnv)
+  object$mod_auto <- mod_auto
   
-  mainDir<-getwd()
-  assign("mainDir",mainDir,envir = .GlobalEnv)
-  
+  object
+}
+
+#---------------------------------------------------------------
+print.CopyNumber450kCancer_data <- function(x, ...){
+  cat(sprintf("CopyNumber450kCancer data with %i samples in regions and %i samples in sample list.\n",
+              length(unique(x$regions$Sample)),
+              length(unique(x$SL$Sample))
+  ))
+  cat("Contains:\n", paste("  ", names(x), collapse = "\n"), "\n", sep="")
 }
 
 #----------------------------------------------------------------
@@ -73,7 +89,8 @@ ReadData<-function(regions_file, Sample_list,copynumber450k=F){
 
 #this uses the regions file: Chromosome should be in this format: "chr1"
 #similar to the original function, this one use only the cutoff
-plotRegions<-function(object, chr, start, end, cutoff=0.1,markers=20,...) {   
+# This function plots the chromosomal regions (segments) with colored segments based on the cutoff. This function was built based on "plotSample" function in "CopyNumber450k" package (http://www.bioconductor.org/packages/release/bioc/html/CopyNumber450k.html), and uses a modified "minor.tick" function in "Hmisc" package to draw small tick in the plots.
+plotRegions<-function(object, chr, start, end, cutoff=0.1,markers=20, ...) {   
   sample_segments <- object
   
   if(hasArg(markers)){
@@ -184,32 +201,31 @@ plotRegions<-function(object, chr, start, end, cutoff=0.1,markers=20,...) {
 #----------------------------------------------------------------
 #The Auto correction based on the highest peak-------------------
 #this function correct the mean of the regions based on the highest peak and plot them
-AutoCorrectPeak<-function(cutoff=0.1,markers=20,...){
+AutoCorrectPeak<-function(object, cutoff=0.1,markers=20, ...){
   subDir<-"Auto_corrected_plots"
-  dir.create(file.path(mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
-  setwd(file.path(mainDir, subDir)) 
+  dir.create(file.path(object$mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
+  setwd(file.path(object$mainDir, subDir)) 
   
   if (missing(markers)) {markers<-(0)}
   
   #prepare the QC file
-  QC<-SL[,1:2]
+  QC<-object$SL[,1:2]
   QC[,3:7]<-0
-  #QC[,5]<-NA
   colnames(QC) <- c("Sample","Comment","peak.sharpness","number.of.regions","IQR","SD","MAPD")
   
   
   par(mfrow=c(2,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
   layout(matrix(c(1,2,3,4),2,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
   
-  for (i in 1:length(SL[,"Sample"])){ #correction
+  for (i in 1:length(object$SL[,"Sample"])){ #correction
     print(paste("Auto Correction....Sample number",i))
     
-    sam <- regions_auto[which(regions_auto$Sample %in% as.character(SL[i,"Sample"])),]
+    sam <- object$regions_auto[which(object$regions_auto$Sample %in% as.character(object$SL[i,"Sample"])),]
     forDen<-sam[which(sam$Chromosome!="chrX" & sam$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
     
     sam.original<-sam
     
-    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.15,n=512)
+    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.15,n=512)
     max.peak.value<-d$x[which.max(d$y)]
     sam$Mean <- sam$Mean-max.peak.value
     
@@ -219,29 +235,32 @@ AutoCorrectPeak<-function(cutoff=0.1,markers=20,...){
     QC[i,"peak.sharpness"] <- as.numeric(QC.peak.sharpness)
     QC[i,"number.of.regions"]  <- length(sam[,1]) # for number of the regions
     
-    QC[i,"IQR"]<-IQR(forDen[,"Mean"], na.rm = T, type = 7) #for IQR
-    QC[i,"SD"]<-sd(forDen[,"Mean"], na.rm = T) #for SD
-    QC[i,"MAPD"]<- median(abs(diff(forDen[,"Mean"],na.rm = T)), na.rm = T)# for Median Absolute Pairwise Difference (MAPD)
+    QC[i,"IQR"]<-IQR(forDen[,"Mean"], na.rm = TRUE, type = 7) #for IQR
+    QC[i,"SD"]<-sd(forDen[,"Mean"], na.rm = TRUE) #for SD
+    QC[i,"MAPD"]<- median(abs(diff(forDen[,"Mean"],na.rm = TRUE)), na.rm = TRUE)# for Median Absolute Pairwise Difference (MAPD)
     
-    regions_auto[which(regions_auto$Sample %in% as.character(SL[i,"Sample"])),"Mean"]<-sam$Mean #store the modifications
-    mod_auto[which(mod_auto$Sample %in% as.character(SL[i,"Sample"])),2:4]<-c(round(max.peak.value, 3),round(-max.peak.value, 3),"Auto") #store the modifications
+    object$regions_auto[which(object$regions_auto$Sample %in% as.character(object$SL[i,"Sample"])),"Mean"]<-sam$Mean #store the modifications
+    object$mod_auto[which(object$mod_auto$Sample %in% as.character(object$SL[i,"Sample"])),2:4]<-c(round(max.peak.value, 3),round(-max.peak.value, 3),"Auto") #store the modifications
     
     print(paste("Plotting....Sample number",i)) #plotting
     
-    png(filename = paste(i,"_",SL[i,"Sample"],"_auto_corrected_plot.png",sep=""), width = 1920, height = 1200)
+    png(filename = paste(i,"_",object$SL[i,"Sample"],"_auto_corrected_plot.png",sep=""), width = 1920, height = 1200)
     
     par(mfrow=c(2,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
     layout(matrix(c(1,2,3,4),2,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
     
     #original plots
     plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+    abline(h = c(0,-cutoff,cutoff), lty = 3)
     box()
     legend("bottomleft", legend="Density",cex=1)
-    plotRegions(sam.original,cutoff=cutoff,markers=markers,main=paste("Sample::",SL[i,"Sample"],"       Info::",SL[i,"Comment"]))
+    plotRegions(sam.original, cutoff=cutoff, markers=markers,
+        main=paste("Sample::",object$SL[i,"Sample"],"       Info::",object$SL[i,"Comment"]), ...)
     
     
     #new plots
     plot(d$y,d$x-max.peak.value,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+    abline(h = c(0,-cutoff,cutoff), lty = 3)
     box()
     legend("bottomleft", legend="Density",cex=1)
     plotRegions(sam,cutoff=cutoff,markers=markers,main=paste("Autocorrected plot"))
@@ -250,19 +269,22 @@ AutoCorrectPeak<-function(cutoff=0.1,markers=20,...){
     dev.off()
   }
   
-  setwd(file.path(mainDir))
-  assign("regions_auto",regions_auto, envir = .GlobalEnv)
-  assign("mod_auto",mod_auto, envir = .GlobalEnv)
-  assign("regions",regions_auto, envir = .GlobalEnv)
-  assign("QC",QC, envir = .GlobalEnv)
+  setwd(file.path(object$mainDir))
+  object$QC <- QC
+  
+  #added for the new version
+  object$regions<-object$regions_auto
   
   print("Saving the file of the autocorrection files...")
-  write.csv(regions_auto,file="autocorrected_regions.csv")
-  write.csv(mod_auto,file="autocorrections.csv")
-  write.csv(QC,file="QC.csv",row.names = F)
+  write.csv(object$regions_auto,file="autocorrected_regions.csv")
+  write.csv(object$mod_auto,file="autocorrections.csv")
+  write.csv(QC,file="QC.csv",row.names = FALSE)
   
   print("Auto Correction Done.")
+  object
 }
+
+
 #AutoCorrectPeak()
 #----------------------------------------------------------------
 #----------------------------------------------------------------
@@ -275,20 +297,20 @@ AutoCorrectPeak<-function(cutoff=0.1,markers=20,...){
 #saving the reviewing results and the modifications and the plots #this only after the reviewing
 # to run it saveOutput() or saveOutput(plots) to save with plots
 # ReviewPlot()
-ReviewPlot<-function(select,plots=T,cutoff=0.1,markers=20,...){
+ReviewPlot<-function(object, select,plots=TRUE,cutoff=0.1,markers=20,...){
  
-  setwd(file.path(mainDir)) 
+  setwd(file.path(object$mainDir)) 
   
   if (missing(select)) {
-    select<-c(1:length(SL[,"Sample"]))
+    select<-c(1:length(object$SL[,"Sample"]))
   }
   
-  assign("to.stop",0,envir = .GlobalEnv)
+  to.stop <- 0
   
-# this function is to calculate the weighted median 
-weighted.median <- function (y, w)   {
-    ox <- order(y)
-    y <- y[ox]
+  # this function is to calculate the weighted median 
+  weighted.median <- function (pp, w) {
+    ox <- order(pp)
+    pp <- pp[ox]
     w <- w[ox]
     k <- 1
     low <- cumsum(c(0, w))
@@ -298,28 +320,33 @@ weighted.median <- function (y, w)   {
       if (df[k] < 0) 
         k <- k + 1
       else if (df[k] == 0) 
-        return((w[k] * y[k] + w[k - 1] * y[k - 1])/(w[k] + w[k - 1]))
-      else return(y[k - 1])
+        return((w[k] * pp[k] + w[k - 1] * pp[k - 1])/(w[k] + w[k - 1]))
+      else return(pp[k - 1])
     }
-  }  
+  }
   
   # this function for shifting and review-------------
-Review<-function(name,cutoff=0.1,markers=20,...){ # sample name  
-    assign("to.stop",0,envir = .GlobalEnv)
+  Review<-function(name,cutoff=0.1,markers=20,...){ # sample name  
+    to.stop <<- 0
     
-    sam <- regions[which(regions$Sample %in% as.character(name)),]   #get the sample segments
+    sam <- object$regions[which(object$regions$Sample %in% as.character(name)),]   #get the sample segments
     
     par(mfrow=c(2,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
     layout(matrix(c(1,2,3,4),2,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
     
     forDen<-sam[which(sam$Chromosome!="chrX" & sam$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.15,n=512)
+    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.15,n=512)
     plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+    abline(h = c(0,-cutoff,cutoff), lty = 3)
     box()
     legend("bottomleft", legend="Density",cex=1)
     
-    plotRegions(sam,cutoff=cutoff,main=c(paste("Sample::",SL[which(SL$Sample %in% as.character(name)),"Sample"]),"             Info::",SL[which(SL$Sample %in% as.character(name)),"Comment"]), ...)
+    plotRegions(sam,cutoff=cutoff,main=c(paste("Sample::",object$SL[which(object$SL$Sample %in% as.character(name)),"Sample"]),
+                                         "             Info::",object$SL[which(object$SL$Sample %in% as.character(name)),"Comment"]), ...)
     legend("topleft", legend=c("2 Clicks on the plot to determine the range","Back/Next to skip this sample","Stop to quit"),cex=0.75)  
+    
+    
+    
     
     A <- 0 #for save #for change between meadian to peak. 
     B <- 500000000  #for save #for change between meadian to peak.
@@ -351,20 +378,20 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
     if ((click1$x > A5 & click1$x < B5 & click1$y > (Y1) & click1$y < (Y2))) { #back
       print("Back to the previous sample")
 
-      assign("to.stop",3,envir = .GlobalEnv)   
+      to.stop <<- 3
       return()#
     }
     
     if ((click1$x > A3 & click1$x < B3 & click1$y > (Y1) & click1$y < (Y2))) { #skip sample
       print("Skipped")
 
-      assign("to.stop",2,envir = .GlobalEnv)   
+      to.stop <<- 2
       return()#
     }
     
     if ((click1$x > A4 & click1$x < B4 & click1$y > (Y1) & click1$y < (Y2))) { #stop reviewing
       print("Stopped")
-      assign("to.stop",1,envir = .GlobalEnv)   
+      to.stop <<- 1
       graphics.off()
       return()#
     }
@@ -375,20 +402,20 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
     if ((click2$x > A5 & click2$x < B5 & click2$y > (Y1) & click2$y < (Y2))) { #back
       print("Back to the previous sample")
 
-      assign("to.stop",3,envir = .GlobalEnv)   
+      to.stop <<- 3   
       return()#
     }
     
     if ((click2$x > A3 & click2$x < B3 & click2$y > (Y1) & click2$y < (Y2))) { #skip sample
       print("Skipped")
 
-      assign("to.stop",2,envir = .GlobalEnv)   
+      to.stop <<- 2   
       return()#
     }
     
     if ((click2$x > A4 & click2$x < B4 & click2$y > (Y1) & click2$y < (Y2))) { #stop reviewing
       print("Stopped")
-      assign("to.stop",1,envir = .GlobalEnv)
+      to.stop <<- 1
       graphics.off()
       return()#
     }
@@ -411,30 +438,30 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
     #the 3rd click
     click3 <- locator(n = 1, type = "n")
     
-    while ((click3$x > A & click3$x < B & click3$y > (Y1) & click3$y < (Y2)) == F & 
-             (click3$x > A2 & click3$x < B2 & click3$y > (Y1) & click3$y < (Y2)) == F & 
-             (click3$x > A3 & click3$x < B3 & click3$y > (Y1) & click3$y < (Y2)) == F & 
-             (click3$x > A4 & click3$x < B4 & click3$y > (Y1) & click3$y < (Y2)) == F) {
+    while ((click3$x > A & click3$x < B & click3$y > (Y1) & click3$y < (Y2)) == FALSE & 
+             (click3$x > A2 & click3$x < B2 & click3$y > (Y1) & click3$y < (Y2)) == FALSE & 
+             (click3$x > A3 & click3$x < B3 & click3$y > (Y1) & click3$y < (Y2)) == FALSE & 
+             (click3$x > A4 & click3$x < B4 & click3$y > (Y1) & click3$y < (Y2)) == FALSE) {
       click3 <- locator(n = 1, type = "n")
     }
     
     if ((click3$x > A5 & click3$x < B5 & click3$y > (Y1) & click3$y < (Y2))) { #back
       print("Back to the previous sample")
 
-      assign("to.stop",3,envir = .GlobalEnv)   
+      to.stop <<- 3   
       return()#
     }
     
     if ((click3$x > A3 & click3$x < B3 & click3$y > (Y1) & click3$y < (Y2))) { #skip sample
       print("Skipped")
 
-      assign("to.stop",2,envir = .GlobalEnv) 
+      to.stop <<- 2 
       return()#
     }
         
     if ((click3$x > A4 & click3$x < B4 & click3$y > (Y1) & click3$y < (Y2))) { #stop reviewing
       print("Stopped")
-      assign("to.stop",1,envir = .GlobalEnv) 
+      to.stop <<- 1 
       graphics.off()
       return()#
     }
@@ -451,8 +478,9 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
       
       #plot the modified plot
       forDen<-sam[which(sam$Chromosome!="chrX" & sam$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-      d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.15,n=512)
+      d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.15,n=512)
       plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+      abline(h = c(0,-cutoff,cutoff), lty = 3)
       box()
       legend("bottomleft", legend="Density",cex=1)
       
@@ -470,52 +498,51 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
       
       click<-locator(n = 1,type = "l")
       
-      while ((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))==F & (click$x>A2&click$x<B2&click$y>(Y1)&click$y<(Y2))==F){
+      while ((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))==FALSE & (click$x>A2&click$x<B2&click$y>(Y1)&click$y<(Y2))==FALSE){
         click<-locator(n = 1,type = "l")
       }   
       if((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))){ #save
         print(paste(name,"modification...saved"))
         
-        regions[which(regions$Sample %in% as.character(name)),"Mean"]<-sam$Mean
-        mod[which(mod$Sample %in% as.character(name)),2:6]<-c(round(up[1], 3),round(up[2], 3),round(move, 4),round(-move, 4),"Yes_using_median")
+        object$regions[which(object$regions$Sample %in% as.character(name)),"Mean"]<<-sam$Mean
+        object$mod[which(object$mod$Sample %in% as.character(name)),2:6]<<-c(round(up[1], 3),round(up[2], 3),round(move, 4),round(-move, 4),"Yes_using_median")
         
-        assign("regions",regions, envir = .GlobalEnv)
-        assign("mod",mod, envir = .GlobalEnv)
-        
-        if(plots==T){
+        if(plots==TRUE){
           
           print(paste("Saving the plot for ...",name))
           
           subDir<-"reviewed_plots"
-          dir.create(file.path(mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
-          setwd(file.path(mainDir, subDir)) 
+          dir.create(file.path(object$mainDir, subDir), showWarnings = FALSE)
+          setwd(file.path(object$mainDir, subDir)) 
           
-          png(filename = paste(SL[which(SL$Sample %in% as.character(name)),"Number"],"_",name,"_reviewed_plot.png",sep=""), width = 1920, height = 1200)
+          png(filename = paste(object$SL[which(object$SL$Sample %in% as.character(name)),"Number"],"_",name,"_reviewed_plot.png",sep=""), width = 1920, height = 1200)
           par(mfrow=c(2,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
           layout(matrix(c(1,2,3,4),2,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
           
           #original plots
-          sam.original <- regions_save[which(regions_save$Sample %in% as.character(name)),]
+          sam.original <- object$regions_save[which(object$regions_save$Sample %in% as.character(name)),]
           forDen<-sam.original[which(sam.original$Chromosome!="chrX" & sam.original$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.20,n=1024)
+          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.20,n=1024)
           
           plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+          abline(h = c(0,-cutoff,cutoff), lty = 3)
           box()
           legend("bottomleft", legend="Density",cex=1)
-          plotRegions(sam.original,cutoff=cutoff,markers=markers,main=paste("Sample:: ",name,"       Info:: ",SL[which(SL$Sample %in% as.character(name)),"Comment"]))
+          plotRegions(sam.original,cutoff=cutoff,markers=markers,main=paste("Sample:: ",name,"       Info:: ",object$SL[which(object$SL$Sample %in% as.character(name)),"Comment"]))
           
           #the reviewed plots
-          draw <- regions[which(regions$Sample %in% as.character(name)),] 
+          draw <- object$regions[which(object$regions$Sample %in% as.character(name)),] 
           forDen<-draw[which(draw$Chromosome!="chrX" & draw$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.20,n=1024)
+          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.20,n=1024)
           
           plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+          abline(h = c(0,-cutoff,cutoff), lty = 3)
           box()
           legend("bottomleft", legend="Density",cex=1)
           plotRegions(draw,cutoff=cutoff,markers=markers,main=paste("Reviewed plot"))
           
           dev.off()
-          setwd(file.path(mainDir))
+          setwd(file.path(object$mainDir))
           
         }
       }
@@ -540,8 +567,9 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
       
       #plot the modified plot
       forDen<-sam[which(sam$Chromosome!="chrX" & sam$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-      d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.15,n=512)
+      d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.15,n=512)
       plot(d$y,d$x,type='l',ylim=c(-1,1),ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+      abline(h = c(0,-cutoff,cutoff), lty = 3)
       box()
       legend("bottomleft", legend="Density",cex=1)
       
@@ -558,52 +586,51 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
       text(((A2+B2)/2),((Y1+Y2)/2),labels=paste("modify"),cex=0.75)
       
       click<-locator(n = 1,type = "l")
-      while ((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))==F & (click$x>A2&click$x<B2&click$y>(Y1)&click$y<(Y2))==F){
+      while ((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))==FALSE & (click$x>A2&click$x<B2&click$y>(Y1)&click$y<(Y2))==FALSE){
         click<-locator(n = 1,type = "l")
       }   
       if((click$x>A&click$x<B&click$y>(Y1)&click$y<(Y2))){ #save
         print(paste(name,"modification...saved"))
         
-        regions[which(regions$Sample %in% as.character(name)),"Mean"]<-sam$Mean
-        mod[which(mod$Sample %in% as.character(name)),2:6]<-c(round(up[1], 3),round(up[2], 3),round(max.peak.value, 4),round(-max.peak.value, 4),"Yes_using_peak")
+        object$regions[which(object$regions$Sample %in% as.character(name)),"Mean"]<<-sam$Mean
+        object$mod[which(object$mod$Sample %in% as.character(name)),2:6]<<-c(round(up[1], 3),round(up[2], 3),round(max.peak.value, 4),round(-max.peak.value, 4),"Yes_using_peak")
         
-        assign("regions",regions, envir = .GlobalEnv)
-        assign("mod",mod, envir = .GlobalEnv)
-        
-        if(plots==T){
+        if(plots==TRUE){
           
           print(paste("Saving the plot for ...",name))
           
           subDir<-"reviewed_plots"
-          dir.create(file.path(mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
-          setwd(file.path(mainDir, subDir)) 
+          dir.create(file.path(object$mainDir, subDir), showWarnings = FALSE)
+          setwd(file.path(object$mainDir, subDir)) 
           
-          png(filename = paste(SL[which(SL$Sample %in% as.character(name)),"Number"],"_",name,"_reviewed_plot.png",sep=""), width = 1920, height = 1200)
+          png(filename = paste(object$SL[which(object$SL$Sample %in% as.character(name)),"Number"],"_",name,"_reviewed_plot.png",sep=""), width = 1920, height = 1200)
           par(mfrow=c(2,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
           layout(matrix(c(1,2,3,4),2,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
           
           #original plots
-          sam.original <- regions_save[which(regions_save$Sample %in% as.character(name)),]
+          sam.original <- object$regions_save[which(object$regions_save$Sample %in% as.character(name)),]
           forDen<-sam.original[which(sam.original$Chromosome!="chrX" & sam.original$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.20,n=1024)
+          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.20,n=1024)
           
           plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+          abline(h = c(0,-cutoff,cutoff), lty = 3)
           box()
           legend("bottomleft", legend="Density",cex=1)
-          plotRegions(sam.original,cutoff=cutoff,markers=markers,main=paste("Sample:: ",name,"       Info:: ",SL[which(SL$Sample %in% as.character(name)),"Comment"]))
+          plotRegions(sam.original,cutoff=cutoff,markers=markers,main=paste("Sample:: ",name,"       Info:: ",object$SL[which(object$SL$Sample %in% as.character(name)),"Comment"]))
           
           #the reviewed plots
-          draw <- regions[which(regions$Sample %in% as.character(name)),] 
+          draw <- object$regions[which(object$regions$Sample %in% as.character(name)),] 
           forDen<-draw[which(draw$Chromosome!="chrX" & draw$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.20,n=1024)
+          d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.20,n=1024)
           
           plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+          abline(h = c(0,-cutoff,cutoff), lty = 3)
           box()
           legend("bottomleft", legend="Density",cex=1)
           plotRegions(draw,cutoff=cutoff,markers=markers,main=paste("Reviewed plot"))
           
           dev.off()
-          setwd(file.path(mainDir))
+          setwd(file.path(object$mainDir))
           
         }
         
@@ -622,83 +649,81 @@ Review<-function(name,cutoff=0.1,markers=20,...){ # sample name
   while (i<=length(select)){ 
     if(i<1) {i<-1}
     
-    print(paste("Sample number:",i, "      name:",SL[select[i],"Sample"]))
-    Review(SL[select[i],"Sample"])
+    print(paste("Sample number:",i, "      name:",object$SL[select[i],"Sample"]))
+    Review(object$SL[select[i],"Sample"])
     
     if(to.stop==3){i<-(i-2)}
     if(to.stop==1){
-      rm(to.stop,envir =.GlobalEnv)
+      rm(to.stop)
       break
     }
     
     i<-i+1
   }
   
-  setwd(file.path(mainDir)) 
-  print("wait...saving the file of the reviewed regions...")
-  write.csv(regions,file="reviewed_regions.csv")
-  print("wait...saving the file of the modification...")
-  write.csv(mod,file="Manual_corrections.csv")
+  setwd(file.path(object$mainDir)) 
+  print("saving the file of the reviewed regions...please wait...")
+  write.csv(object$regions,file="reviewed_regions.csv")
+  print("saving the file of the modification...please wait...")
+  write.csv(object$mod,file="Manual_corrections.csv")
   
   print("Done.")
+  object
   
 }
 
 #-  ------------------------------------------------------
 #----------------------------------------------------------------
 #This function to plot only oone plot per page
-PlotCNV<- function(select,comment=F,cutoff=0.1,markers=20){
+PlotCNV<- function(object, select,comment=FALSE,cutoff=0.1,markers=20){
   
   if (missing(select)) {
-    select<-c(1:length(SL[,"Sample"]))
+    select<-c(1:length(object$SL[,"Sample"]))
   }
   
   print("Plotting...")
   
   subDir<-"plots"
-  dir.create(file.path(mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
-  setwd(file.path(mainDir, subDir)) 
+  dir.create(file.path(object$mainDir, subDir), showWarnings = FALSE)
+  setwd(file.path(object$mainDir, subDir)) 
   
-  for(i in 1:length(SL[,"Sample"])){
+  for(i in 1:length(select)){
     #the plots
-    png(filename = paste(select[i],"_",SL[select[i],"Sample"],"_plot.png",sep=""), width = 1920, height = 1200)
+    png(filename = paste(select[i],"_",object$SL[select[i],"Sample"],"_plot.png",sep=""), width = 1920, height = 1200)
     
     par(mfrow=c(1,2),mar= c(5.1,0,4.1,0),oma=c(2,0,0,4))
     layout(matrix(c(1,2),1,2,byrow=TRUE), widths=c(3,21), heights=c(10,10), TRUE) 
     
     #the density
-    draw <- regions[which(regions$Sample %in% SL[select[i],"Sample"]),] 
+    draw <- object$regions[which(object$regions$Sample %in% object$SL[select[i],"Sample"]),] 
     forDen<-draw[which(draw$Chromosome!="chrX" & draw$Chromosome!="chrY"),c("Num.of.Markers","Mean")]
-    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=T,kernel = c("gaussian"),adjust=0.20,n=1024)
+    d<-density(forDen$Mean,weights=forDen$Num.of.Markers/sum(forDen$Num.of.Markers),na.rm=TRUE,kernel = c("gaussian"),adjust=0.20,n=1024)
     
     plot(d$y,d$x,ylim=c(-1,1),type='l',ylab="",xlab="",axes=FALSE,xlim=rev(range(d$y)))
+    abline(h = c(0,-cutoff,cutoff), lty = 3)
     box()
     legend("bottomleft", legend="Density",cex=1)
     
     info<-""
-    if(comment==T){
-      Comment <- SL[select[i],"Comment"]
+    if(comment==TRUE){
+      Comment <- object$SL[select[i],"Comment"]
       info<-paste("       Info:: ",Comment)
     }
     
-    plotRegions(draw,cutoff=cutoff,markers=markers,main=paste("Sample::",SL[select[i],"Sample"],info))
+    plotRegions(draw,cutoff=cutoff,markers=markers,main=paste("Sample::",object$SL[select[i],"Sample"],info))
     
     dev.off()
   }
   
   graphics.off()
-  setwd(file.path(mainDir))
+  setwd(file.path(object$mainDir))
 }
-
 
 #----------------------------------------------------------------
 #for merging based on the cutoff and number of markers in the region
-PlotMerged<-function(file,cutoff=0.1,markers=20,...){
+PlotMerged<-function(object, cutoff=0.1, markers=20, ...){
   
-  if (missing(file)) {
-    file<-(regions)
-    print("regions file is selected")
-  }
+  file <- object$regions
   
   file<-file[which(file$Chromosome!="chrX" & file$Chromosome!="chrY"),] #removing X and Y chr.s
   
@@ -715,25 +740,22 @@ PlotMerged<-function(file,cutoff=0.1,markers=20,...){
   file$Mean<-forChange
   
   subDir<-"Merged_plots"
-  dir.create(file.path(mainDir, subDir), showWarnings = FALSE)  #mainDir was saved in the readData function
-  setwd(file.path(mainDir, subDir)) 
+  dir.create(file.path(object$mainDir, subDir), showWarnings = FALSE)
+  setwd(file.path(object$mainDir, subDir)) 
   
-  for (i in 1:length(SL[,"Sample"])){  #plotting
+  for (i in 1:length(object$SL[,"Sample"])){  #plotting
     print(paste("Plotting....Sample number",i))
-    sam<-file[which(file$Sample %in% as.character(SL[i,"Sample"])),]
-    png(filename = paste(i,"_",SL[i,"Sample"],"_merged_plot_","cutoff_",cutoff,".png",sep=""), width = 1920, height = 1200)
-    plotRegions(sam,main=paste("CNV_450K::",SL[i,"Sample"],SL[i,"Comment"]),cutoff=cutoff)
+    sam<-file[which(file$Sample %in% as.character(object$SL[i,"Sample"])),]
+    png(filename = paste(i,"_",object$SL[i,"Sample"],"_merged_plot_","cutoff_",cutoff,".png",sep=""), width = 1920, height = 1200)
+    plotRegions(sam,main=paste("CNV_450K::",object$SL[i,"Sample"],object$SL[i,"Comment"]),cutoff=cutoff)
     dev.off()
   }
   
-  setwd(file.path(mainDir))
+  setwd(file.path(object$mainDir))
   print("Plotting... Done.")
   
 }
 
-
-
-#----------------------------------------------------------------
 #----------------------------------------------------------------
 #-----------------------------END--------------------------------
 #----------------------------------------------------------------

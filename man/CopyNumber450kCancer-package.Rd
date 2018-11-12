@@ -20,10 +20,10 @@ License: \tab GPL (>= 2)\cr
 \author{
 Nour-al-dain Marzouka
 
-Maintainer: Nour-al-dain Marzouka <nour.marzouka@medsci.uu.se>
+Maintainer: Nour-al-dain Marzouka <nour.dna.eng@gmail.com>
 }
 \keyword{
 450k, copy number, baseline, center, centering, correction, cancer, CopyNumber450kCancer, CopyNumber450k, CopyNumber, CopyNumber450kCancer package }
 \seealso{
-\url{https://github.com/nourmarzouka/CopyNumber450kCancer} 
+\url{https://github.com/Molmed/CopyNumber450kCancer} 
 }

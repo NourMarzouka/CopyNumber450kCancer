@@ -12,3 +12,5 @@ License: GPL (>= 2)
 Imports: methods
 VignetteBuilder: utils
 Suggests: utils
+URL: https://github.com/Molmed/CopyNumber450kCancer
+BugReports: https://github.com/Molmed/CopyNumber450kCancer/issues

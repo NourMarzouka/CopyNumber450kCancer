@@ -1,0 +1,25 @@
+citHeader("To cite package ‘CopyNumber450kCancer’ in publications use:")
+
+bibentry(
+  bibtype = "Article",
+  title = "CopyNumber450kCancer: baseline correction for accurate copy number calling from the 450k methylation array",
+  journal = "Bioinformatics",
+  volume = 32,
+	number = 7,
+  pages = "1080-1082",
+  year = 2015,
+  author = personList(
+		persion(family="Marzouka", given="Nour-al-dain", role=c("aut", "cre")),
+		persion(family="Nordlund", given="Jessica", role=c("ctb")),
+		persion(family="Bäcklin", given="Christofer L.", role="cbt"),
+		persion(family="Lönnerholm", given="Gudmar", role=c("fnd", "dtc")),
+		persion(family="Syvänen", given="Ann-Christine", role=c("fnd", "dtc")),
+		persion(family="Carlsson Almlöf", given="Jonas", role=c("ctb"))
+	),
+	doi = "10.1093/bioinformatics/btv652"
+	url = "https://doi.org/10.1093/bioinformatics/btv652",
+  textVersion = "Bäcklin et al. (2018) Self-tuning density estimation based on
+    Bayesian averaging of adaptive kernel density estimations yields
+    state-of-the-art performance. Pattern Recognition. 78:133-143."
+)
+

@@ -2,6 +2,9 @@ source := $(shell git ls-files .)
 version := $(shell grep -r "Version" DESCRIPTION | cut -c 22-)
 pkg := CopyNumber450kCancer_$(version).tar.gz
 
+clean:
+	rm -rf *.Rcheck *.tar.gz
+
 build: $(pkg)
 	@echo "Built $<"
 

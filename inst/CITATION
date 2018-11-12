@@ -1,4 +1,4 @@
-citHeader("To cite package ‘CopyNumber450kCancer’ in publications use:")
+citHeader("To cite package 'CopyNumber450kCancer' in publications use:")
 
 bibentry(
   bibtype = "Article",
@@ -9,17 +9,14 @@ bibentry(
   pages = "1080-1082",
   year = 2015,
   author = personList(
-		persion(family="Marzouka", given="Nour-al-dain", role=c("aut", "cre")),
-		persion(family="Nordlund", given="Jessica", role=c("ctb")),
-		persion(family="Bäcklin", given="Christofer L.", role="cbt"),
-		persion(family="Lönnerholm", given="Gudmar", role=c("fnd", "dtc")),
-		persion(family="Syvänen", given="Ann-Christine", role=c("fnd", "dtc")),
-		persion(family="Carlsson Almlöf", given="Jonas", role=c("ctb"))
+		person(given="Nour-al-dain", family="Marzouka", role=c("aut", "cre")),
+		person(given="Jessica", family="Nordlund", role=c("ctb")),
+		person(given="Christofer L.", family="Backlin", role="cbt"),
+		person(given="Gudmar", family="Lonnerholm", role=c("fnd", "dtc")),
+		person(given="Ann-Christine", family="Syvanen", role=c("fnd", "dtc")),
+		person(given="Jonas", family="Carlsson Almlof", role=c("ctb"))
 	),
-	doi = "10.1093/bioinformatics/btv652"
-	url = "https://doi.org/10.1093/bioinformatics/btv652",
-  textVersion = "Bäcklin et al. (2018) Self-tuning density estimation based on
-    Bayesian averaging of adaptive kernel density estimations yields
-    state-of-the-art performance. Pattern Recognition. 78:133-143."
+	doi = "10.1093/bioinformatics/btv652",
+	url = "https://doi.org/10.1093/bioinformatics/btv652"
 )
 

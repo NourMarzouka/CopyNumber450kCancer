@@ -1,2 +1,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+\.swp$
+^\.RData$
+^\.Rhistory$
+\.Rcheck$
+^\.git
+^Makefile$

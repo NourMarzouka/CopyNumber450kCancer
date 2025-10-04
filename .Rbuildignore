@@ -4,6 +4,9 @@
 ^\.RData$
 ^\.Rhistory$
 \.Rcheck$
-^\.git
+^\.git$
+^\.gitignore$
 ^Makefile$
 .*\.tar\.gz$
+.*\.zip$
+^check_output\.log$

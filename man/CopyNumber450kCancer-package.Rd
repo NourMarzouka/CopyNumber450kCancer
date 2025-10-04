@@ -12,8 +12,8 @@ The main advantages for CopyNumber450kCancer-package are: Fast (few seconds per 
 \tabular{ll}{
 Package: \tab CopyNumber450kCancer\cr
 Type: \tab Package\cr
-Version: \tab 1.0.4\cr
-Date: \tab 2015-08-17\cr
+Version: \tab 1.0.7\cr
+Date: \tab 2025-10-03\cr
 License: \tab GPL (>= 2)\cr
 }
 }
@@ -22,8 +22,11 @@ Nour-al-dain Marzouka
 
 Maintainer: Nour-al-dain Marzouka <nour.dna.eng@gmail.com>
 }
-\keyword{
-450k, copy number, baseline, center, centering, correction, cancer, CopyNumber450kCancer, CopyNumber450k, CopyNumber, CopyNumber450kCancer package }
+\keyword{450k}
+\keyword{copy-number}
+\keyword{baseline}
+\keyword{correction}
+\keyword{cancer}
 \seealso{
 \url{https://github.com/Molmed/CopyNumber450kCancer} 
 }
